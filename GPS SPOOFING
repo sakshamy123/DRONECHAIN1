@@ -1,0 +1,6 @@
+def verify_gps(signal, blockchain):
+    # Check if GPS source is trusted
+    if blockchain.is_verified(signal.source):
+        return True  # Accept signal
+    else:
+        return False  # Reject - possible spoofing!
