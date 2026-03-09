@@ -1,0 +1,13 @@
+Why This Exists
+In 2011, Iran captured a US military drone using GPS Spoofing.
+Drones today still have NO way to verify if a GPS signal is real.
+DroneChain fixes this using blockchain as a trusted source of truth.
+
+ What DroneChain Does
+- Every GPS signal is verified against blockchain before drone accepts it
+- Trusted satellite sources stored immutably on-chain
+- Every spoofing attempt logged permanently — cannot be deleted
+- Drone stays safe even during signal jamming attacks
+
+ Current Status
+🔄 Active Development — Month 1 of 3
