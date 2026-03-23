@@ -1,0 +1,187 @@
+"""
+DroneChain - blockchain.py
+Core Blockchain Structure for GPS Signal Verification
+Author: DroneChain Project - IIIT Una
+Day 2 - Core Implementation
+"""
+
+import hashlib
+import json
+import time
+
+
+class Block:
+    """
+    A single block in the DroneChain blockchain.
+    Stores one GPS signal event (verified or attack).
+    """
+
+    def __init__(self, index, data, previous_hash):
+        self.index = index                          # Block number
+        self.timestamp = time.time()               # When this happened
+        self.data = data                           # GPS signal data
+        self.previous_hash = previous_hash         # Links to previous block
+        self.hash = self.calculate_hash()          # This block's unique ID
+
+    def calculate_hash(self):
+        """
+        Creates a unique fingerprint for this block.
+        If anyone tampers with data → hash changes → detected!
+        """
+        block_string = json.dumps({
+            "index": self.index,
+            "timestamp": self.timestamp,
+            "data": self.data,
+            "previous_hash": self.previous_hash
+        }, sort_keys=True)
+
+        return hashlib.sha256(block_string.encode()).hexdigest()
+
+    def __str__(self):
+        return (
+            f"\n{'='*50}"
+            f"\nBlock #{self.index}"
+            f"\nTimestamp : {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(self.timestamp))}"
+            f"\nData      : {self.data}"
+            f"\nHash      : {self.hash[:20]}..."
+            f"\nPrev Hash : {self.previous_hash[:20]}..."
+            f"\n{'='*50}"
+        )
+
+
+class DroneChain:
+    """
+    The main blockchain for DroneChain.
+    Stores all GPS signal events immutably.
+    """
+
+    def __init__(self):
+        self.chain = []                            # List of all blocks
+        self.trusted_sources = []                  # Verified GPS sources
+        self._create_genesis_block()               # First block always
+
+    def _create_genesis_block(self):
+        """First block - the foundation of our blockchain"""
+        genesis = Block(0, {
+            "type": "GENESIS",
+            "message": "DroneChain initialized",
+            "project": "Blockchain GPS Security for Drones"
+        }, "0" * 64)
+        self.chain.append(genesis)
+        print("✅ DroneChain initialized - Genesis block created")
+
+    def add_trusted_source(self, source_id, source_name):
+        """
+        Register a trusted GPS satellite source on blockchain.
+        Only these sources will be accepted by drones.
+        """
+        if source_id not in [s['id'] for s in self.trusted_sources]:
+            self.trusted_sources.append({
+                "id": source_id,
+                "name": source_name,
+                "registered_at": time.time()
+            })
+
+            # Add to blockchain permanently
+            self._add_block({
+                "type": "TRUSTED_SOURCE_ADDED",
+                "source_id": source_id,
+                "source_name": source_name
+            })
+            print(f"✅ Trusted source added: {source_id} ({source_name})")
+        else:
+            print(f"⚠️  Source {source_id} already registered")
+
+    def is_verified(self, source_id):
+        """
+        Check if a GPS source is trusted.
+        This is the core of verify_gps() function.
+        Returns True if trusted, False if not.
+        """
+        trusted_ids = [s['id'] for s in self.trusted_sources]
+        return source_id in trusted_ids
+
+    def log_verified_signal(self, signal):
+        """Log a successfully verified GPS signal"""
+        self._add_block({
+            "type": "SIGNAL_VERIFIED",
+            "source": signal.source,
+            "location": signal.location,
+            "timestamp": signal.timestamp
+        })
+
+    def log_attack(self, signal):
+        """
+        Log a spoofing attack permanently.
+        This record can NEVER be deleted or edited.
+        """
+        self._add_block({
+            "type": "SPOOFING_ATTACK_DETECTED",
+            "attacker_source": signal.source,
+            "attempted_location": signal.location,
+            "timestamp": signal.timestamp,
+            "action_taken": "SIGNAL_REJECTED"
+        })
+        print(f"🚨 ATTACK LOGGED on blockchain - Source: {signal.source}")
+
+    def _add_block(self, data):
+        """Internal method to add a new block to chain"""
+        previous_block = self.chain[-1]
+        new_block = Block(
+            index=len(self.chain),
+            data=data,
+            previous_hash=previous_block.hash
+        )
+        self.chain.append(new_block)
+        return new_block
+
+    def is_chain_valid(self):
+        """
+        Verify blockchain hasn't been tampered with.
+        Checks every block's hash matches its data.
+        """
+        for i in range(1, len(self.chain)):
+            current = self.chain[i]
+            previous = self.chain[i - 1]
+
+            # Recalculate hash - if data changed, hash won't match
+            if current.hash != current.calculate_hash():
+                print(f"❌ Block #{i} has been TAMPERED!")
+                return False
+
+            # Check chain is properly linked
+            if current.previous_hash != previous.hash:
+                print(f"❌ Chain broken at Block #{i}!")
+                return False
+
+        return True
+
+    def print_chain(self):
+        """Display entire blockchain"""
+        print(f"\n{'='*50}")
+        print(f"  DRONECHAIN LEDGER - {len(self.chain)} blocks")
+        print(f"{'='*50}")
+        for block in self.chain:
+            print(block)
+
+    def get_attack_history(self):
+        """Get all logged spoofing attacks"""
+        attacks = []
+        for block in self.chain:
+            if block.data.get("type") == "SPOOFING_ATTACK_DETECTED":
+                attacks.append(block.data)
+        return attacks
+
+    def get_stats(self):
+        """Get blockchain statistics"""
+        verified = sum(1 for b in self.chain
+                      if b.data.get("type") == "SIGNAL_VERIFIED")
+        attacks = sum(1 for b in self.chain
+                     if b.data.get("type") == "SPOOFING_ATTACK_DETECTED")
+        return {
+            "total_blocks": len(self.chain),
+            "verified_signals": verified,
+            "attacks_blocked": attacks,
+            "trusted_sources": len(self.trusted_sources),
+            "chain_valid": self.is_chain_valid()
+        }
